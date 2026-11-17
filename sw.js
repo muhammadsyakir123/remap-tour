@@ -5,7 +5,7 @@
 // back to the copy saved on the phone after a few seconds or when offline.
 // Fonts from Google: saved on first use. The sync link is never cached.
 
-const VERSION = '20261118-010208'; // replaced by scripts/deploy-web.ps1
+const VERSION = '20261118-010853'; // replaced by scripts/deploy-web.ps1
 const CACHE = 'remap-tour-' + VERSION;
 const CORE = [
   './',
@@ -15,6 +15,7 @@ const CORE = [
   'manifest.json',
   'favicon-p44.png',
   'icons/p44-192.png',
+  'icons/p44-512.png',
   'icons/p44-apple-touch-icon.png',
   'assets/assets/p44-logo.png',
   'assets/AssetManifest.bin.json',

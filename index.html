@@ -5,6 +5,9 @@
   <base href="/remap-tour/">
 
   <meta charset="UTF-8">
+  <!-- Phone width from the first paint, so the loading screen's logo has
+       the same size as Android's launch screen (Flutter keeps it after). -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Remap tour riders, prices, payments and expenses. Works without signal.">
   <meta name="theme-color" content="#D65320">
@@ -20,21 +23,21 @@
 
   <title>Remap Tour</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #f6f4f1; }
-    @media (prefers-color-scheme: dark) { html, body { background: #15171b; } }
+    /* The loading screen continues Android's launch screen exactly: the
+       logo's own carbon colour (manifest background_color) full screen and
+       the same logo at the same size, its edges fading into that colour. */
+    html, body { margin: 0; height: 100%; background: #151413; }
     #splash {
-      position: fixed; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 18px;
-      font: 600 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      color: #8a7f76; letter-spacing: .08em; transition: opacity .25s;
+      position: fixed; inset: 0; display: flex;
+      align-items: center; justify-content: center;
+      background: #151413; transition: opacity .25s;
     }
-    #splash img { width: 96px; height: 96px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+    #splash img { width: 176px; height: 176px; }
   </style>
 </head>
 <body>
   <div id="splash">
-    <img src="icons/p44-192.png" alt="">
-    <div>REMAP TOUR</div>
+    <img src="icons/p44-512.png" alt="P44 Remap Tour">
   </div>
   <script>
     // Hide the loading screen once Flutter has drawn the app.
