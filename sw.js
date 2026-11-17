@@ -5,7 +5,7 @@
 // back to the copy saved on the phone after a few seconds or when offline.
 // Fonts from Google: saved on first use. The sync link is never cached.
 
-const VERSION = '20261118-005509'; // replaced by scripts/deploy-web.ps1
+const VERSION = '20261118-010208'; // replaced by scripts/deploy-web.ps1
 const CACHE = 'remap-tour-' + VERSION;
 const CORE = [
   './',
