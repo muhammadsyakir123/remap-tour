@@ -5,7 +5,7 @@
 // back to the copy saved on the phone after a few seconds or when offline.
 // Fonts from Google: saved on first use. The sync link is never cached.
 
-const VERSION = '20261118-002711'; // replaced by scripts/deploy-web.ps1
+const VERSION = '20261118-003130'; // replaced by scripts/deploy-web.ps1
 const CACHE = 'remap-tour-' + VERSION;
 const CORE = [
   './',
@@ -13,9 +13,9 @@ const CORE = [
   'flutter_bootstrap.js',
   'main.dart.js',
   'manifest.json',
-  'favicon.png',
-  'icons/Icon-192.png',
-  'icons/apple-touch-icon.png',
+  'favicon-p44.png',
+  'icons/p44-192.png',
+  'icons/p44-apple-touch-icon.png',
   'assets/AssetManifest.bin.json',
   'assets/FontManifest.json',
   'assets/fonts/MaterialIcons-Regular.otf',
