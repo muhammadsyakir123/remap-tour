@@ -11,6 +11,8 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Remap tour riders, prices, payments and expenses. Works without signal.">
   <meta name="theme-color" content="#D65320">
+  <!-- The published version (scripts/stamp-web.mjs). -->
+  <meta name="build" content="20261124-232753">
 
   <!-- Installed as an app: Chrome "Install app", Safari "Add to Home Screen". -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -21,36 +23,208 @@
   <link rel="icon" type="image/png" href="favicon-p44.png">
   <link rel="manifest" href="manifest.json">
 
+  <!-- Start the big downloads at once instead of after flutter_bootstrap.js
+       has loaded: the app, and the drawing engine this browser will use
+       (the same test as Flutter's loader). -->
+  <link rel="preload" href="main.dart.js" as="script">
+  <script>
+    (function () {
+      var blink = navigator.vendor === 'Google Inc.' || navigator.userAgent.indexOf('Edg/') >= 0;
+      var chromium = blink && typeof ImageDecoder !== 'undefined' &&
+        typeof Intl.v8BreakIterator !== 'undefined' && typeof Intl.Segmenter !== 'undefined';
+      var dir = chromium ? 'canvaskit/chromium/' : 'canvaskit/';
+      var js = document.createElement('link');
+      js.rel = 'modulepreload'; js.href = dir + 'canvaskit.js';
+      var wasm = document.createElement('link');
+      wasm.rel = 'preload'; wasm.as = 'fetch'; wasm.crossOrigin = 'anonymous'; wasm.href = dir + 'canvaskit.wasm';
+      document.head.appendChild(js);
+      document.head.appendChild(wasm);
+    })();
+  </script>
+
   <title>Remap Tour</title>
   <style>
     /* The loading screen continues Android's launch screen exactly: the
        logo's own carbon colour (manifest background_color) full screen and
-       the same logo at the same size, its edges fading into that colour. */
+       the same logo at the same size. A small JPEG (74 KB, not the 554 KB
+       icon) so it shows at once on a weak signal. */
     html, body { margin: 0; height: 100%; background: #151413; }
     #splash {
       position: fixed; inset: 0; display: flex;
       align-items: center; justify-content: center;
       background: #151413; transition: opacity .25s;
+      font: 13px/1.4 system-ui, -apple-system, Roboto, sans-serif;
     }
     #splash img { width: 176px; height: 176px; }
+    /* A loading bar under the logo, only when loading takes a while. */
+    #splash .bar {
+      position: absolute; top: calc(50% + 116px); left: 50%;
+      width: 120px; height: 3px; margin-left: -60px; border-radius: 2px;
+      background: rgba(255, 255, 255, .12); overflow: hidden;
+      opacity: 0; animation: show .4s 1.5s forwards;
+    }
+    #splash .bar::after {
+      content: ''; display: block; width: 40%; height: 100%;
+      background: #D65320; border-radius: 2px;
+      animation: slide 1.2s ease-in-out infinite;
+    }
+    #splash .note {
+      position: absolute; top: calc(50% + 136px); left: 24px; right: 24px;
+      text-align: center; color: rgba(255, 255, 255, .55);
+      opacity: 0; animation: show .4s 8s forwards;
+    }
+    @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+    @keyframes show { to { opacity: 1; } }
+    /* "New version" bar, when the app was already in use as it arrived. */
+    #update {
+      position: fixed; left: 16px; right: 16px; bottom: 92px; z-index: 10;
+      max-width: 420px; margin: 0 auto; box-sizing: border-box;
+      display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 16px;
+      background: #2B2724; color: #F3EFEA; border-radius: 14px;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+      font: 14px/1.3 system-ui, -apple-system, Roboto, sans-serif;
+    }
+    #update span { flex: 1; }
+    #update button {
+      border: 0; border-radius: 10px; padding: 9px 14px;
+      background: #D65320; color: #fff; font: 600 14px system-ui, -apple-system, Roboto, sans-serif;
+    }
   </style>
 </head>
 <body>
   <div id="splash">
-    <img src="icons/p44-512.png" alt="P44 Remap Tour">
+    <img src="icons/p44-splash.jpg" alt="P44 Remap Tour">
+    <div class="bar"></div>
+    <div class="note">First open on this phone: downloading the app (about 3 MB).<br>Next time it opens at once, even without signal.</div>
   </div>
   <script>
-    // Hide the loading screen once Flutter has drawn the app.
-    window.addEventListener('flutter-first-frame', function () {
-      var splash = document.getElementById('splash');
-      if (splash) { splash.style.opacity = '0'; setTimeout(function () { splash.remove(); }, 300); }
-    });
-    // Offline support and automatic updates (see sw.js).
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').catch(function () {});
-      });
-    }
+    (function () {
+      // A fresh open: the newest version may be switched to without asking.
+      var openedFresh = true;
+      var hiddenAt = 0;
+      window.addEventListener('pointerdown', function () { openedFresh = false; }, true);
+      window.addEventListener('keydown', function () { openedFresh = false; }, true);
+
+      // Hide the loading screen once Flutter has drawn the app, then set up
+      // offline use (after, so it does not slow the first open).
+      var started = false;
+      window.addEventListener('flutter-first-frame', function () {
+        started = true;
+        var splash = document.getElementById('splash');
+        if (splash) { splash.style.opacity = '0'; setTimeout(function () { splash.remove(); }, 300); }
+        if ('serviceWorker' in navigator) offline(navigator.serviceWorker);
+      }, { once: true });
+
+      // Never a black screen. Android may take the graphics away from an app
+      // left in the background, and the app can come back without drawing
+      // anything. If nothing is drawn a moment after coming back, ask for a
+      // fresh drawing, then reload (the data is saved on the phone).
+      function reloadOnce() {
+        try {
+          var last = Number(sessionStorage.getItem('remap-tour-revived') || 0);
+          if (Date.now() - last < 60000) return; // never a reload loop
+          sessionStorage.setItem('remap-tour-revived', String(Date.now()));
+        } catch (_) {}
+        location.reload();
+      }
+      // How many sampled points of Flutter's screen show something; -1 when
+      // it cannot be read (then nothing is done).
+      function drawnPoints() {
+        try {
+          var pane = document.querySelector('flt-glass-pane');
+          var root = pane && (pane.shadowRoot || pane);
+          var canvases = root ? root.querySelectorAll('canvas') : [];
+          if (!canvases.length) return 0;
+          var probe = document.createElement('canvas');
+          probe.width = 48; probe.height = 96;
+          var g = probe.getContext('2d');
+          for (var i = 0; i < canvases.length; i++) g.drawImage(canvases[i], 0, 0, 48, 96);
+          var d = g.getImageData(0, 0, 48, 96).data, lit = 0;
+          for (var j = 0; j < d.length; j += 4) if (d[j + 3] > 0 && d[j] + d[j + 1] + d[j + 2] > 120) lit++;
+          return lit;
+        } catch (_) {
+          return -1;
+        }
+      }
+      var checking = false;
+      function checkDrawn() {
+        if (!started || checking || document.visibilityState !== 'visible') return;
+        checking = true;
+        setTimeout(function () {
+          if (drawnPoints() !== 0) { checking = false; return; }
+          window.dispatchEvent(new Event('resize')); // a fresh drawing
+          setTimeout(function () {
+            checking = false;
+            if (document.visibilityState === 'visible' && drawnPoints() === 0) reloadOnce();
+          }, 2000);
+        }, 2000);
+      }
+      document.addEventListener('visibilitychange', checkDrawn);
+      window.addEventListener('pageshow', checkDrawn);
+      window.addEventListener('focus', checkDrawn);
+      // Saved on this phone but not started half a minute on: start again.
+      setTimeout(function () {
+        if (!started && navigator.serviceWorker && navigator.serviceWorker.controller &&
+            document.visibilityState === 'visible') reloadOnce();
+      }, 30000);
+
+      function offline(sw) {
+        var controlled = !!sw.controller;
+        var switching = false;
+        sw.addEventListener('controllerchange', function () {
+          // The first save on this phone changes nothing on screen.
+          if (!controlled) { controlled = true; return; }
+          if (!switching) { switching = true; location.reload(); }
+        });
+        sw.register('sw.js').then(function (registration) {
+          // Save what this phone loaded (its drawing engine, fonts).
+          sw.ready.then(function (ready) {
+            var urls = performance.getEntriesByType('resource').map(function (e) { return e.name; });
+            if (ready.active) ready.active.postMessage({ type: 'keep', urls: urls });
+          });
+          watch(registration);
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+            // Back after a while (between stops): like opening it again.
+            if (hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000) openedFresh = true;
+            registration.update().catch(function () {});
+          });
+        }).catch(function () {});
+      }
+
+      // A new version saved and waiting: switch now if nobody is using the
+      // app yet, otherwise offer it.
+      function watch(registration) {
+        function ready(worker) {
+          if (!navigator.serviceWorker.controller) return;
+          if (openedFresh) worker.postMessage({ type: 'update' });
+          else offer(worker);
+        }
+        function follow(worker) {
+          if (!worker) return;
+          worker.addEventListener('statechange', function () {
+            if (worker.state === 'installed') ready(worker);
+          });
+        }
+        // Opening the app already made the browser look for a new version:
+        // it may be saved, or still downloading.
+        if (registration.waiting) ready(registration.waiting);
+        follow(registration.installing);
+        registration.addEventListener('updatefound', function () { follow(registration.installing); });
+      }
+
+      function offer(worker) {
+        if (document.getElementById('update')) return;
+        var bar = document.createElement('div');
+        bar.id = 'update';
+        bar.innerHTML = '<span>A new version of Remap Tour is ready.</span><button type="button">Update</button>';
+        bar.querySelector('button').addEventListener('click', function () {
+          bar.remove();
+          worker.postMessage({ type: 'update' });
+        });
+        document.body.appendChild(bar);
+      }
+    })();
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
